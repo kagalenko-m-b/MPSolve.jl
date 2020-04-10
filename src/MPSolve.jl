@@ -27,7 +27,7 @@ function BigInt(m::Mpz)
     return b
 end
              
-struct Mpq  <: Real
+struct Mpq
     num::Mpz
     den::Mpz
 
@@ -95,11 +95,9 @@ struct Mpf
         ccall((:__gmpf_init_set_si, :libgmp), Cvoid, (Ref{Mpf}, Clong), f, i)
         return f[]
     end
-
-    Mpf(i::Integer) = Mpf(Int64(i))
 end
 
-Base.convert(::Type{Mpf}, x::T) where T<:Signed = Mpf(x)
+Base.convert(::Type{Mpf}, x::T) where T<:Union{Int32,Int16,Int8} = Mpf(Int64(x))
 
 function BigFloat(f::Mpf)
     b = BigFloat()
@@ -108,9 +106,6 @@ function BigFloat(f::Mpf)
           b, f, MPFRRoundNearest)
     return b
 end
-
-Base.convert(::Type{Mpf}, x::T) where T<:Union{BigFloat,Float64,Int64} = 
-    Mpf(x)
 
 struct Mpsc
     r::Mpf
@@ -142,13 +137,20 @@ struct Cplx
      i::Cdouble
 end
 
+Cplx(x) = Cplx(x, 0.0)
+Cplx(x::Real, y::Real) = Cplx(Float64(x), Float64(y))
+Cplx(z::Complex) = Cplx(Float64(z.re), Float64(z.im))
 complex(m::Cplx) = Complex(m.r, m.i)
 
-function setup_mpsolve(degree :: Integer)
+function new_context()
     context = ccall((:mps_context_new, :libmps), Ptr{Cvoid}, ())
+end
+
+function new_monomial(degree :: Integer)
+    context = new_context()
     monomial_poly  = ccall((:mps_monomial_poly_new, :libmps), 
-                            Ptr{Cvoid}, (Ptr{Cvoid}, Int), context, degree)
-    (context, monomial_poly)
+                           Ptr{Cvoid}, (Ptr{Cvoid}, Int), context, degree)
+    return (context, monomial_poly)
 end
 
 function set_coefficients(context, monomial_poly, coefficients)
@@ -187,31 +189,46 @@ function set_coefficients(context, monomial_poly, coefficients)
     end
 end
 
-function set_input_poly(context, monomial_poly)
+function set_input_poly(context, poly)
     ccall((:mps_context_set_input_poly, :libmps), Cvoid, 
-          (Ref{Cvoid}, Ref{Cvoid}), context, monomial_poly)
+          (Ref{Cvoid}, Ref{Cvoid}), context, poly)
 end
 
 @enum mps_algorithm begin
     MPS_ALGORITHM_STANDARD_MPSOLVE
     MPS_ALGORITHM_SECULAR_GA
 end
+
+function select_algorithm(context, alg::mps_algorithm)
+    ccall((:mps_context_select_algorithm, :libmps), Cvoid,
+          (Ref{Cvoid}, Cint), context, alg)
+end
+
 @enum mps_output_goal begin
     MPS_OUTPUT_GOAL_ISOLATE
     MPS_OUTPUT_GOAL_APPROXIMATE
     MPS_OUTPUT_GOAL_COUNT
 end
 
-function solve_poly(context, output_precison)
-    ccall((:mps_context_select_algorithm, :libmps), Cvoid,
-          (Ref{Cvoid}, Cint),
-          context, MPS_ALGORITHM_SECULAR_GA)
+function set_output_goal(context, goal:: mps_output_goal)
     ccall((:mps_context_set_output_goal, :libmps), Cvoid,
-          (Ref{Cvoid}, Cint),
-          context, MPS_OUTPUT_GOAL_APPROXIMATE)
+          (Ref{Cvoid}, Cint), context, goal)
+end
+
+function set_output_precision(context, output_precision::Integer)
     ccall((:mps_context_set_output_prec, :libmps), Cvoid,
-          (Ref{Cvoid}, Clong), context, output_precison)
+          (Ref{Cvoid}, Clong), context, output_precision)
+end
+
+function mpsolve(context)
     ccall((:mps_mpsolve, :libmps), Cvoid, (Ptr{Cvoid},), context)
+end
+
+function solve_poly(context, output_precision)
+    select_algorithm(context, MPS_ALGORITHM_SECULAR_GA)
+    set_output_goal(context, MPS_OUTPUT_GOAL_APPROXIMATE)
+    set_output_precision(context, output_precision)
+    mpsolve(context)
 end
 
 
@@ -226,11 +243,11 @@ function get_roots(context)
     end
     rds = Array{Rdpe}(undef, degree)
     GC.@preserve roots_m rds begin
-        roots_p = pointer(roots_m)
-        rds_p = pointer(rds)
+        roots_ptr = pointer(roots_m)
+        rds_ptr = pointer(rds)
         ccall((:mps_context_get_roots_m, :libmps), Cint,
-              (Ref{Cvoid}, Ref{Ref{Mpsc}}, Ref{Ref{Rdpe}}),
-              context, roots_p, rds_p)
+              (Ref{Cvoid}, Ref{Ptr{Mpsc}}, Ref{Ptr{Rdpe}}),
+              context, roots_ptr, rds_ptr)
     end
     roots = complex.(roots_m)
     _gmp_clear!(roots_m)
@@ -243,19 +260,23 @@ function get_roots_d(context)
     roots_c = Array{Cplx}(undef, degree)
     radii = Array{Cdouble}(undef, degree)
     GC.@preserve roots_c radii begin
-        roots_p = pointer(roots_c)
-        radii_p = pointer(radii)
+        roots_ptr = pointer(roots_c)
+        radii_ptr = pointer(radii)
         ccall((:mps_context_get_roots_d, :libmps), Cint,
               (Ref{Cvoid}, Ref{Ptr{Cplx}}, Ref{Ptr{Cdouble}}),
-              context, roots_p, radii_p)
+              context, roots_ptr, radii_ptr)
     end
     roots = complex.(roots_c)
     (roots,radii)
 end
 
-function free_context(context, monomial_poly)
+function free_monomial(context, monomial_poly)
     ccall((:mps_monomial_poly_free, :libmps), Cvoid,
           (Ptr{Cvoid}, Ptr{Cvoid}), context, monomial_poly)
+    free_context(context)
+end
+
+function free_context(context)
     ccall((:mps_context_free, :libmps), Cvoid, (Ptr{Cvoid},), context)
 end
 
@@ -277,9 +298,9 @@ julia> all(map(x->abs((x^N - 1)/(N*x^(N - 1))), app) < rad)
 true
 ```
 """
-function mps_roots(coefficients::Array, output_precision=53)
+function mps_roots(coefficients::Array, output_precision::Integer=53)
     degree = length(coefficients)-1
-    (context, monomial_poly) = setup_mpsolve(degree)
+    context,monomial_poly = new_monomial(degree)
     set_coefficients(context, monomial_poly, coefficients)
     set_input_poly(context, monomial_poly)
     solve_poly(context, output_precision)
@@ -288,8 +309,46 @@ function mps_roots(coefficients::Array, output_precision=53)
     else
         (roots, radii) = get_roots(context)
     end
-    free_context(context, monomial_poly)
+    free_monomial(context, monomial_poly)
     (roots, radii)
 end
 
+function new_secular(a_coeffs::Array, b_coeffs::Array)
+    degree = length(a_coeffs) - 1
+    if length(b_coeffs) != degree + 1
+        throw(ArgumentError("input arrays must have equal length"))
+    end
+    context = new_context()
+    a_cplx = Cplx.(a_coeffs)
+    b_cplx = Cplx.(b_coeffs)
+    GC.@preserve a_cplx b_cplx begin
+        a_ptr = pointer(a_cplx)
+        b_ptr = pointer(b_cplx)
+        sec_eqn = ccall((:mps_secular_equation_new, :libmps), Ptr{Cvoid},
+                        (Ptr{Cvoid}, Ref{Cplx}, Ref{Cplx}, Culong),
+                        context, a_ptr, b_ptr, degree + 1)
+    end
+    return context,sec_eqn
+end
+
+function free_secular(context, secular_equation)
+    ccall((:mps_polynomial_free, :libmps), Cvoid,
+          (Ptr{Cvoid}, Ptr{Cvoid}), context, secular_equation)
+    free_context(context)
+end
+
+
+function mps_roots(a_coeffs::Array, b_coeffs::Array, output_precision::Integer=53)
+    context,secular_equation =  new_secular(a_coeffs, b_coeffs)
+    set_input_poly(context, secular_equation)
+    select_algorithm(context, MPS_ALGORITHM_STANDARD_MPSOLVE)
+    mpsolve(context)
+     if output_precision <= 53
+        (roots, radii) = get_roots_d(context)
+    else
+        (roots, radii) = get_roots(context)
+    end
+    free_secular(context, secular_equation)
+    return (roots, radii)
+end
 end
