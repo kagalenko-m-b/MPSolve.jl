@@ -97,6 +97,7 @@ struct Mpf
     end
 end
 
+Base.convert(::Type{Mpf}, x::Int64) = Mpf(x)
 Base.convert(::Type{Mpf}, x::T) where T<:Union{Int32,Int16,Int8} = Mpf(Int64(x))
 
 function BigFloat(f::Mpf)
