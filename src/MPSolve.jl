@@ -43,33 +43,8 @@ struct MContext{PolyType}
         set_input_poly(context)
         return context
     end
-    #
-    # function MContext(a_coeffs::Vector{Cplx}, b_coeffs::Vector{Cplx})
-    #     degree = length(a_coeffs)
-    #     if length(b_coeffs) != degree
-    #         throw(ArgumentError("input arrays must have equal length"))
-    #     end
-    #     cntxt_ptr = new_cntxt_ptr()
-    #     GC.@preserve a_coeffs b_coeffs begin
-    #         a_ptr = pointer(a_coeffs)
-    #         b_ptr = pointer(b_coeffs)
-    #         sec_eqn = ccall((:mps_secular_equation_new, :libmps), Ptr{Cvoid},
-    #         (Ptr{Cvoid}, Ref{Cplx}, Ref{Cplx}, Culong),
-    #         cntxt_ptr, a_ptr, b_ptr, degree
-    #         )
-    #     end
-    #     context = new{Secular}(cntxt_ptr, sec_eqn)
-    #     set_input_poly(context)
-    #     return context
-    # end
-    #
 end
 
-MContext(ab_cfs::Tuple{AbstractVector, AbstractVector}) = MContext(ab_cfs[1], ab_cfs[2])
-# MContext(a_coeffs, b_coeffs) = MContext(promote(complex(a_coeffs), complex(b_coeffs))...)
-# function MContext(a_coeffs::T, b_coeffs::T) where T<:AbstractVector{ComplexF64}
-#     return MContext(Cplx.(a_coeffs), Cplx.(b_coeffs))
-# end
 
 function new_cntxt_ptr()
     cntxt_ptr = ccall((:mps_context_new, :libmps), Ptr{Cvoid}, ())
