@@ -18,31 +18,19 @@ end
 
 function roots2secular_coeffs(roots)
     M = length(roots)
-    R = 1.01
-    D = R*exp.(im*pi*range(1/M, stop=2-1/M, length=M))
-    L = -D/(M*R^M)
+    T = eltype(roots)
+    D = exp.(im*T(pi)*range(1, stop=2M-1, length=M)/T(M))
+    L = -D/M
     F = [-prod(d .- roots) for d in D]
     return L.*F,D
 end
 
-function solve_test(rts, args...;n_digits=nothing)
-    if isnothing(n_digits)
-        if real(eltype(args[1])) <:Union{BigFloat,BigInt}
-            n_digits=55
-        else
-            n_digits=53
-        end
-    end
-    (app, rad) = mps_roots(args...,n_digits)
+function solve_test(rts, args; output_prec=53)
+    (app, rad) = mps_roots(args, output_prec)
+    T = real(eltype(app))
     for i = 1:length(rts)
         (err, ind) = findmin(map(abs, app .- rts[i]))
-        if isnan(rad[ind])
-            err_radius = 10*eps(real(eltype(app)))
-        else
-            err_radius = max(rad[ind],
-                             abs(app[ind])*eps(real(eltype(app))))
-        end
-        @test err <= err_radius
+        @test err <= max(rad[ind], sqrt(eps(T)))
     end
 end
 
@@ -77,7 +65,7 @@ end
 function test_secular_roots_unity(n)
     E = unity_roots(n)
     A,B = roots2secular_coeffs(E)
-    solve_test(E, ComplexF64.(A), ComplexF64.(B), n_digits=54)
+    solve_test(E, (A, B), output_prec=256)
 end
 """
 Test solving the Wilkinson polynomial
@@ -119,8 +107,8 @@ for N = 99:100
     test_roots_of_unity_fp(N)
     test_roots_of_unity_bigint(N)
     test_roots_of_unity_bigfloat(N)
+    # test_wilkinson(N)
     test_secular_roots_unity(N)
-    test_wilkinson(N)
 end
 test_complex_int()
 test_complex_bigint()
