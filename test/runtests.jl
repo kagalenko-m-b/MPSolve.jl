@@ -25,8 +25,8 @@ function roots2secular_coeffs(roots)
     return L.*F,D
 end
 
-function solve_test(rts, args; output_prec=53)
-    (app, rad) = mps_roots(args, output_prec)
+function solve_test(rts, args...; output_prec=53)
+    (app, rad) = mps_roots(args..., output_prec)
     T = real(eltype(app))
     for i = 1:length(rts)
         (err, ind) = findmin(map(abs, app .- rts[i]))
@@ -65,7 +65,7 @@ end
 function test_secular_roots_unity(n)
     E = unity_roots(n)
     A,B = roots2secular_coeffs(E)
-    solve_test(E, (A, B), output_prec=256)
+    solve_test(E, A, B, output_prec=256)
 end
 """
 Test solving the Wilkinson polynomial

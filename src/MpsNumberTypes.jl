@@ -66,37 +66,53 @@ struct Mpf
 
     function Mpf(b::BigFloat)
         f = Ref{Mpf}()
+        ccall(
+            (:__gmpf_init_set, :libgmp),
+            Cvoid,
+            (Ref{Mpf}, Ref{BigFloat}),
+            f,
+            b
+        )
+    end
+
+    function Mpf(b::BigInt)
+        f = Ref{Mpf}()
         ccall((:__gmpf_init, :libgmp), Cvoid, (Ref{Mpf},), f)
         ccall(
-            (:mpfr_get_f, :libmpfr),
-            Cint, (Ref{Mpf},Ref{BigFloat},MPFRRoundingMode),
-            f, b, MPFRRoundNearest
+            (:__gmpf_set_z, :libgmp),
+            Cvoid, (Ref{Mpf}, Ref{BigInt}),
+            f,
+            b
         )
         return f[]
     end
- 
+
     function Mpf(d::Float64)
         f = Ref{Mpf}()
         ccall((:__gmpf_init_set_d, :libgmp), Cvoid, (Ref{Mpf},Cdouble), f, d)
         return f[]
     end
     
-    function Mpf(i::Int64)
+    function Mpf(i::Int32)
         f = Ref{Mpf}()
         ccall((:__gmpf_init_set_si, :libgmp), Cvoid, (Ref{Mpf}, Clong), f, i)
         return f[]
     end
 end
 
-Base.convert(::Type{Mpf}, x::T) where T<:Union{Int32,Int16,Int8} = Mpf(Int64(x))
+Base.convert(::Type{Mpf}, x::Signed) = Mpf(BigInt(x))
+Base.convert(::Type{Mpf}, x::T) where T<:Union{Int32,Int16,Int8} = Mpf(Int32(x))
 Base.convert(::Type{Mpf}, x::AbstractFloat) = Mpf(x)
 
 function BigFloat(f::Mpf)
     b = BigFloat()
     ccall(
         (:mpfr_set_f, :libmpfr),
-        Cint, (Ref{BigFloat},Ref{Mpf},MPFRRoundingMode),
-        b, f, MPFRRoundNearest
+        Cint,
+        (Ref{BigFloat},Ref{Mpf},MPFRRoundingMode),
+        b,
+        f,
+        MPFRRoundNearest
     )
     return b
 end

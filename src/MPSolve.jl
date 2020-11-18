@@ -161,7 +161,16 @@ function get_degree(context::MContext)
     ccall((:mps_context_get_degree, :libmps), Cint, (Ref{Cvoid},), context.cntxt_ptr)
 end
 
-function get_roots_bigfloat(context::MContext)
+function get_roots(context::MContext, output_precision::Int)
+    if output_precision <= 53
+        roots,radii = get_roots_f64(context)
+    else
+        roots,radii = get_roots_big(context)
+    end
+    return roots, radii
+end
+
+function get_roots_big(context::MContext)
     degree = get_degree(context)
     roots_m = Array{Mpsc}(undef, degree)
     for n=1:degree
@@ -184,7 +193,7 @@ function get_roots_bigfloat(context::MContext)
     return (roots, radii)
 end
 
-function get_roots_float64(context::MContext)
+function get_roots_f64(context::MContext)
     degree =  get_degree(context)
     roots_c = Array{Cplx}(undef, degree)
     radii = Array{Cdouble}(undef, degree)
@@ -204,9 +213,9 @@ end
 
 
 """
-    (approximations, radii) = mps_roots(coefficients, output_precision)
+    (approximations, radii) = mps_roots(coefficients, output_precision=53)
 
-Approximate the roots of the polynomial specified by the array
+Approximate the roots of a polynomial specified by the array
 of its coefficients. Output precision is specified in bits.
 
 # Example
@@ -221,14 +230,33 @@ julia> all(map(x->abs((x^N - 1)/(N*x^(N - 1))), app) < rad)
 true
 ```
 """
-function mps_roots(coeffs, output_precision::Integer=53)
-    context = MContext(coeffs)
+function mps_roots(coefficients::AbstractVector,  output_precision::Integer=53)
+    return mps_roots(coefficients; output_precision=output_precision)
+end
+
+"""
+    (approximations, radii) = mps_roots(A, B, output_precision=53)
+
+Approximate the roots of a secular equation. Output precision is specified in bits.
+
+# Example
+```jldoctest
+julia> N = 64;
+
+julia>
+
+julia>
+
+```
+"""
+function mps_roots(A::AbstractVector, B::AbstractVector, output_precision::Integer=53)
+    return mps_roots(A, B; output_precision=output_precision)
+end
+
+function mps_roots(coeffs...; output_precision::Integer=53)
+    context = MContext(coeffs...)
     solve_poly(context, output_precision)
-    if output_precision <= 53
-        (roots, radii) = get_roots_float64(context)
-    else
-        (roots, radii) = get_roots_bigfloat(context)
-    end
+    (roots, radii) = get_roots(context, output_precision)
     free_context(context)
     (roots, radii)
 end

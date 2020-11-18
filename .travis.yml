@@ -14,8 +14,6 @@ julia:
 notifications:
     email: false
 
-coveralls: true
-
 before_install:
     - sudo apt-add-repository -y ppa:leo.robol/mpsolve
     - sudo apt-get update -qq
