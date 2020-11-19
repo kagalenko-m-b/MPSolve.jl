@@ -2,8 +2,18 @@ module MpsNumberTypes
 
 using Base.GMP: Limb
 using Base.MPFR: MPFRRoundingMode,MPFRRoundNearest
+import Base: convert, big, complex
+export Mpz,Mpq,Mpf,Mpsc,Rdpe,Cplx,mpsf_precision,mpsf_setprecision,mps_clear!
 
-export Mpq,Mpf,Mpsc,Rdpe,Cplx,mps_clear!
+function __init__()
+    try
+        # set GMP floating types precision to current precsion of julia's BigFloat
+        mpsf_setprecision(precision(BigFloat))
+    catch ex
+        Base.showerror_nostdio(ex, "WARNING: Error during initialization of MpsNumberTypes")
+    end
+    nothing
+end
 
 struct Mpz
     alloc::Cint
@@ -26,7 +36,9 @@ function BigInt(m::Mpz)
     ccall((:__gmpz_set, :libgmp), Cvoid, (Ref{BigInt},Ref{Mpz}), b, m)
     return b
 end
-             
+big(::Type{Mpz}) = BigInt
+big(v::Mpz) = BigInt(v)
+
 struct Mpq
     num::Mpz
     den::Mpz
@@ -49,15 +61,19 @@ struct Mpq
         return q[]
     end
 end
+mps_clear!(m::Mpz) = ccall((:__gmpz_clear, :libgmp), Cvoid, (Ref{Mpz},), m)
+mps_clear!(m::Mpq) = ccall((:__gmpq_clear, :libgmp), Cvoid, (Ref{Mpq},), m)
+
 Mpq(f::AbstractFloat) = Mpq(big(f))
 Base.convert(::Type{Mpq}, x::T) where T<:Union{Signed,Rational} = Mpq(x)
 Base.Rational(q::Mpq) = Rational(BigInt(q.num), BigInt(q.den))
 (::Type{T})(q::Mpq) where T<: AbstractFloat = T(Rational(q))
-mps_clear!(m::Mpz) = ccall((:__gmpz_clear, :libgmp), Cvoid, (Ref{Mpz},), m)
-mps_clear!(m::Mpq) = ccall((:__gmpq_clear, :libgmp), Cvoid, (Ref{Mpq},), m)
+big(::Type{Mpq}) = BigFloat
+big(v::Mpq) = BigFloat(v)
 
 # Arbitrary precision floating point type from gmp.h used by MPSolve
 # is different from Julia's BigFloat
+
 struct Mpf
     _mp_prec::Cint
     _mp_size::Cint
@@ -66,13 +82,17 @@ struct Mpf
 
     function Mpf(b::BigFloat)
         f = Ref{Mpf}()
+        ccall((:__gmpf_init, :libgmp), Cvoid, (Ref{Mpf},), f)
         ccall(
-            (:__gmpf_init_set, :libgmp),
-            Cvoid,
-            (Ref{Mpf}, Ref{BigFloat}),
+            (:mpfr_get_f, :libmpfr),
+            Cint,
+            (Ref{Mpf},Ref{BigFloat},MPFRRoundingMode),
             f,
-            b
+            b,
+            MPFRRoundNearest
         )
+
+        return f[]
     end
 
     function Mpf(b::BigInt)
@@ -84,6 +104,7 @@ struct Mpf
             f,
             b
         )
+
         return f[]
     end
 
@@ -92,10 +113,11 @@ struct Mpf
         ccall((:__gmpf_init_set_d, :libgmp), Cvoid, (Ref{Mpf},Cdouble), f, d)
         return f[]
     end
-    
+
     function Mpf(i::Int32)
         f = Ref{Mpf}()
         ccall((:__gmpf_init_set_si, :libgmp), Cvoid, (Ref{Mpf}, Clong), f, i)
+
         return f[]
     end
 end
@@ -117,12 +139,19 @@ function BigFloat(f::Mpf)
     return b
 end
 
+big(::Type{Mpf}) = BigFloat
+big(v::Mpf) = BigFloat(v)
+
+mpsf_precision() = ccall((:__gmpf_get_default_prec, :libgmp), Culong, ())
+mpsf_setprecision(p) = ccall((:__gmpf_set_default_prec, :libgmp), Cvoid, (Culong,), p)
+
 struct Mpsc
     r::Mpf
     i::Mpf
 end
 Mpsc(x) = Mpsc(x, 0)
 Mpsc() = Mpsc(0)
+Base.complex(m::Mpsc) = complex(BigFloat(m.r), BigFloat(m.i))
 
 mps_clear!(f::Mpf) = ccall((:__gmpf_clear, :libgmp), Cvoid, (Ref{Mpf},), f)
 mps_clear!(c::Mpsc) = mps_clear!([c.r, c.i])
@@ -140,8 +169,10 @@ struct Cplx
      i::Cdouble
 end
 
+Cplx() = Cplx(0.0)
 Cplx(x) = Cplx(x, 0.0)
 Cplx(z::Complex) = Cplx(z.re, z.im)
+Base.complex(m::Cplx) = complex(Float64(m.r), Float64(m.i))
 
 
 end
