@@ -66,6 +66,7 @@ function set_coefficient!(context::MContext{Monomial}, cf::Complex, index)
         Cvoid, (Ref{Cvoid}, Ref{Cvoid}, Clong, Ref{Mpq}, Ref{Mpq}),
         context.cntxt_ptr, context.poly, index, c_re, c_im
     )
+    mps_clear!(c_re, c_im)
 end
 
 function set_coefficient!(
@@ -98,6 +99,7 @@ function set_coefficients!(
             Cvoid, (Ref{Cvoid}, Ref{Cvoid}, Clong, Ref{Mpq}, Ref{Mpq}, Ref{Mpq}, Ref{Mpq}),
             context.cntxt_ptr, context.poly, k - 1, a_re, a_im, b_re, b_im
         )
+        mps_clear!(a_re, a_im, b_re, b_im)
     end
     return nothing
 end

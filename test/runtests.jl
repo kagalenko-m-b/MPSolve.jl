@@ -107,17 +107,17 @@ end
 @testset "Types for interfacing with MPSolve" begin
     @test mpsf_precision() == precision(BigFloat)
     v = [Mpz(), Mpz(Int32(1234567890)), convert(Mpz, big"123456789012345678901234567890")]
-    @test eltype(v) == Mpz && eltype(big.(v)) == BigInt
+    @test eltype(v) == Mpz && eltype(big.(v)) == BigInt && big(Mpz) == BigInt
     @test big.(v) == [0, 1234567890, 123456789012345678901234567890]
     mps_clear!(v)
     #
     v = Mpq.(Any[big(pi), rationalize(Float64(pi), tol=eps(BigFloat))])
-    @test eltype(v) == Mpq && eltype(big.(v)) == BigFloat
+    @test eltype(v) == Mpq && eltype(big.(v)) == BigFloat && big(Mpq) == BigFloat
     @test big.(v) == [big(pi), Float64(pi)]
-    #mps_clear!(v)
+    mps_clear!(v)
     #
     v = Mpf.(Any[Float64(pi), Int32(1234567890)])
-    @test eltype(v) == Mpf && eltype(big.(v)) == BigFloat
+    @test eltype(v) == Mpf && eltype(big.(v)) == BigFloat && big(Mpf) == BigFloat
     #
     v = Mpf(big(pi))
     @test typeof(v) == Mpf && typeof(big(v)) == BigFloat && big(v) == big(pi)

@@ -3,7 +3,7 @@ module MpsNumberTypes
 using Base.GMP: Limb
 using Base.MPFR: MPFRRoundingMode,MPFRRoundNearest
 using MPSolve_jll
-import Base: big, convert, complex, finalizer
+import Base: big, complex, convert
 
 export Mpz,Mpq,Mpf,Mpsc,Rdpe,Cplx,mpsf_precision,mpsf_setprecision,mps_clear!
 
@@ -38,10 +38,11 @@ function BigInt(m::Mpz)
     ccall((:__gmpz_set, :libgmp), Cvoid, (Ref{BigInt},Ref{Mpz}), b, m)
     return b
 end
+mps_clear!(m::Mpz) = ccall((:__gmpz_clear, :libgmp), Cvoid, (Ref{Mpz},), m)
 big(::Type{Mpz}) = BigInt
 big(v::Mpz) = BigInt(v)
 
-mutable struct Mpq
+struct Mpq
     num::Mpz
     den::Mpz
 
@@ -50,27 +51,20 @@ mutable struct Mpq
     Mpq(q::Rational{T}) where T<:Signed = Mpq(q.num, q.den)
     Mpq(num::T, den::S) where  {T, S<:Signed} = Mpq(BigInt(num), BigInt(den))
     function Mpq(num::BigInt, den::BigInt)
-        #q = Ref{Mpq}()
-        q = new()
+        q = Ref{Mpq}()
         ccall((:__gmpq_init, :libgmp), Cvoid, (Ref{Mpq},), q)
         ccall((:__gmpq_set_num, :libgmp), Cvoid, (Ref{Mpq},Ref{BigInt}), q, num)
         ccall((:__gmpq_set_den, :libgmp), Cvoid, (Ref{Mpq},Ref{BigInt}), q, den)
-        finalizer(cglobal((:__gmpq_clear, :libgmp)), q)
-        return q
+        return q[]
     end
     function Mpq(f::BigFloat)
-        #q = Ref{Mpq}()
-        q = new()
+        q = Ref{Mpq}()
         ccall((:__gmpq_init, :libgmp), Cvoid, (Ref{Mpq},), q)
         ccall((:mpfr_get_q, :libmpfr), Cvoid, (Ref{Mpq}, Ref{BigFloat}), q, f)
-        finalizer(cglobal((:__gmpq_clear, :libgmp)), q)
-        return q
+        return q[]
     end
-    
 end
-
-mps_clear!(m::Mpz) = ccall((:__gmpz_clear, :libgmp), Cvoid, (Ref{Mpz},), m)
-# mps_clear!(m::Mpq) = ccall((:__gmpq_clear, :libgmp), Cvoid, (Ref{Mpq},), m)
+mps_clear!(m::Mpq) = ccall((:__gmpq_clear, :libgmp), Cvoid, (Ref{Mpq},), m)
 
 Mpq(f::AbstractFloat) = Mpq(big(f))
 Mpq(c::Complex) = Mpq.(reim(c))
@@ -164,7 +158,8 @@ Base.complex(m::Mpsc) = complex(BigFloat(m.r), BigFloat(m.i))
 
 mps_clear!(f::Mpf) = ccall((:__gmpf_clear, :libgmp), Cvoid, (Ref{Mpf},), f)
 mps_clear!(c::Mpsc) = mps_clear!([c.r, c.i])
-mps_clear!(m::Array{T}) where T<:Union{Mpz, Mpq, Mpf, Mpsc} = (mps_clear!.(m);nothing)
+mps_clear!(m...) = mps_clear!.(m)
+mps_clear!(m::AbstractArray) = mps_clear!.(m)
 
 struct Rdpe
     r::Cdouble

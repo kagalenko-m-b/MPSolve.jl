@@ -5,6 +5,10 @@ os:
     - osx
     - windows
 
+arch:
+  - amd64
+  - arm64
+
 julia:
     - nightly
     - 1.3
