@@ -8,3 +8,9 @@ MPSolve_jll = "184ad7ad-f978-5c9a-833c-fb4ab31fd3fb"
 
 [compat]
 julia = "1.3"
+
+[extras]
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+
+[targets]
+test = ["Test"]
