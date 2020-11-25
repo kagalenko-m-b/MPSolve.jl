@@ -2,7 +2,9 @@ module MpsNumberTypes
 
 using Base.GMP: Limb
 using Base.MPFR: MPFRRoundingMode,MPFRRoundNearest
-import Base: convert, big, complex
+using MPSolve_jll
+import Base: big, convert, complex, finalizer
+
 export Mpz,Mpq,Mpf,Mpsc,Rdpe,Cplx,mpsf_precision,mpsf_setprecision,mps_clear!
 
 function __init__()
@@ -39,7 +41,7 @@ end
 big(::Type{Mpz}) = BigInt
 big(v::Mpz) = BigInt(v)
 
-struct Mpq
+mutable struct Mpq
     num::Mpz
     den::Mpz
 
@@ -48,23 +50,30 @@ struct Mpq
     Mpq(q::Rational{T}) where T<:Signed = Mpq(q.num, q.den)
     Mpq(num::T, den::S) where  {T, S<:Signed} = Mpq(BigInt(num), BigInt(den))
     function Mpq(num::BigInt, den::BigInt)
-        q = Ref{Mpq}()
+        #q = Ref{Mpq}()
+        q = new()
         ccall((:__gmpq_init, :libgmp), Cvoid, (Ref{Mpq},), q)
         ccall((:__gmpq_set_num, :libgmp), Cvoid, (Ref{Mpq},Ref{BigInt}), q, num)
         ccall((:__gmpq_set_den, :libgmp), Cvoid, (Ref{Mpq},Ref{BigInt}), q, den)
-        return q[]
+        finalizer(cglobal((:__gmpq_clear, :libgmp)), q)
+        return q
     end
     function Mpq(f::BigFloat)
-        q = Ref{Mpq}()
+        #q = Ref{Mpq}()
+        q = new()
         ccall((:__gmpq_init, :libgmp), Cvoid, (Ref{Mpq},), q)
         ccall((:mpfr_get_q, :libmpfr), Cvoid, (Ref{Mpq}, Ref{BigFloat}), q, f)
-        return q[]
+        finalizer(cglobal((:__gmpq_clear, :libgmp)), q)
+        return q
     end
+    
 end
+
 mps_clear!(m::Mpz) = ccall((:__gmpz_clear, :libgmp), Cvoid, (Ref{Mpz},), m)
-mps_clear!(m::Mpq) = ccall((:__gmpq_clear, :libgmp), Cvoid, (Ref{Mpq},), m)
+# mps_clear!(m::Mpq) = ccall((:__gmpq_clear, :libgmp), Cvoid, (Ref{Mpq},), m)
 
 Mpq(f::AbstractFloat) = Mpq(big(f))
+Mpq(c::Complex) = Mpq.(reim(c))
 Base.convert(::Type{Mpq}, x::T) where T<:Union{Signed,Rational} = Mpq(x)
 Base.Rational(q::Mpq) = Rational(BigInt(q.num), BigInt(q.den))
 (::Type{T})(q::Mpq) where T<: AbstractFloat = T(Rational(q))
@@ -162,7 +171,7 @@ struct Rdpe
     e::Clong
 end
 
-Float64(d::Rdpe) = ccall((:rdpe_get_d, :libmps), Cdouble, (Ref{Rdpe},) ,d)
+Float64(d::Rdpe) = ccall((:rdpe_get_d, libmps), Cdouble, (Ref{Rdpe},) ,d)
 
 struct Cplx
      r::Cdouble

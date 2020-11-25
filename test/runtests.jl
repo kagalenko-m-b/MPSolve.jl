@@ -114,7 +114,7 @@ end
     v = Mpq.(Any[big(pi), rationalize(Float64(pi), tol=eps(BigFloat))])
     @test eltype(v) == Mpq && eltype(big.(v)) == BigFloat
     @test big.(v) == [big(pi), Float64(pi)]
-    mps_clear!(v)
+    #mps_clear!(v)
     #
     v = Mpf.(Any[Float64(pi), Int32(1234567890)])
     @test eltype(v) == Mpf && eltype(big.(v)) == BigFloat

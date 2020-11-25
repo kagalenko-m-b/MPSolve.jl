@@ -2,9 +2,8 @@ language: julia
 
 os:
     - linux
-
-arch:
-  - amd64
+    - osx
+    - windows
 
 julia:
     - nightly
@@ -14,11 +13,6 @@ julia:
 
 notifications:
     email: false
-
-before_install:
-    - sudo apt-add-repository -y ppa:leo.robol/mpsolve
-    - sudo apt-get update -qq
-    - sudo apt-get install -y libmps3 libmps3-dev
 
 script:
  - julia --color=yes -e 'using Pkg; Pkg.test(; coverage=true)';
